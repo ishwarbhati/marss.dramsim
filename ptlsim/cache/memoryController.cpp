@@ -38,6 +38,7 @@
 
 #include <machine.h>
 
+extern uint64_t qemu_ram_size;
 using namespace Memory;
 
 MemoryController::MemoryController(W8 coreid, const char *name,
@@ -52,7 +53,6 @@ MemoryController::MemoryController(W8 coreid, const char *name,
     }
 #ifdef DRAMSIM
 
-	extern uint64_t qemu_ram_size;
 
 	//mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_16M_8B_x8_sg15.ini", "system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20 );
 	//mem = DRAMSim::getMemorySystemInstance("ini/DDR3_micron_32M_8B_x16_sg15.ini", "system.ini", "../DRAMSim2", "MARSS", qemu_ram_size>>20 );
