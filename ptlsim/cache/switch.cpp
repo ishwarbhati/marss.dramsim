@@ -22,10 +22,6 @@ Switch::Switch(const char *name, MemoryHierarchy *memoryHierarchy)
     SET_SIGNAL_CB(name, "_send", send, &Switch::send_cb);
     SET_SIGNAL_CB(name, "_send_complete", send_complete,
             &Switch::send_complete_cb);
-
-    if(!memoryHierarchy_->get_machine().get_option(name, "latency", latency_)) {
-        latency_ = SWITCH_DELAY;
-    }
 }
 
 Switch::~Switch()
@@ -115,7 +111,7 @@ bool Switch::send_cb(void *arg)
     /* Set destination as busy and signal send_complete */
     queueEntry->in_use = 1;
     dest_cq->recv_busy = 1;
-    memoryHierarchy_->add_event(&send_complete, latency_, cq);
+    memoryHierarchy_->add_event(&send_complete, SWITCH_DELAY, cq);
 
     return true;
 }
@@ -132,7 +128,7 @@ bool Switch::send_complete_cb(void *arg)
 
     if (queueEntry->annuled) {
         /* Try to send new packet arrived in queue */
-        memoryHierarchy_->add_event(&send, latency_, cq);
+        memoryHierarchy_->add_event(&send, SWITCH_DELAY, cq);
         return true;
     }
 
@@ -149,20 +145,19 @@ bool Switch::send_complete_cb(void *arg)
 
     memdebug("Switch sending message success: " << success << endl);
 
-	/* If destination is not accepting current controller's request
-	 * so retry after AVG_WAIT_DELAY and meanwhile mark the
-	 * destination controller as available , else on success
-	 * remove the entry from queue. */
+    if (success) {
+        dest_cq->recv_busy = 0;
+        queueEntry->request->decRefCounter();
+        ADD_HISTORY_REM(queueEntry->request);
+        cq->queue.free(queueEntry);
 
-	if (success) {
-		queueEntry->request->decRefCounter();
-		ADD_HISTORY_REM(queueEntry->request);
-		cq->queue.free(queueEntry);
-	}
+        /* Try to send new packet arrived in queue */
+        memoryHierarchy_->add_event(&send, SWITCH_DELAY, cq);
+        return true;
+    }
 
-	dest_cq->recv_busy = 0;
-	memoryHierarchy_->add_event(&send, 1, cq);
-	return true;
+    memoryHierarchy_->add_event(&send_complete, 1, cq);
+    return true;
 }
 
 ControllerQueue* Switch::get_queue(Controller *cont)

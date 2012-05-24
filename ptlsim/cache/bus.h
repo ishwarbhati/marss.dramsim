@@ -32,10 +32,6 @@
 
 namespace Memory {
 
-// Bus Dealys
-const int BUS_ARBITRATE_DELAY = 1;
-const int BUS_BROADCASTS_DELAY = 6;
-
 struct BusControllerQueue;
 
 struct BusQueueEntry : public FixStateListObject
@@ -82,9 +78,6 @@ class BusInterconnect : public Interconnect
 		Signal broadcastCompleted_;
 		Signal dataBroadcastCompleted_;
 
-        int latency_;
-        int arbitrate_latency_;
-
 		BusQueueEntry *arbitrate_round_robin();
 
 	public:
@@ -102,7 +95,7 @@ class BusInterconnect : public Interconnect
 
 		// Bus delay in sending message is BUS_BROADCASTS_DELAY
 		int get_delay() {
-			return latency_;
+			return BUS_BROADCASTS_DELAY;
 		}
 
 		void print(ostream& os) const {

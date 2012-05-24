@@ -49,9 +49,9 @@ class Interconnect
 
 	public:
 		MemoryHierarchy *memoryHierarchy_;
-		Interconnect(const char *name, MemoryHierarchy *memoryHierarchy)
-			: controller_request_("Controller Request")
-			, memoryHierarchy_(memoryHierarchy)
+		Interconnect(const char *name, MemoryHierarchy *memoryHierarchy) :
+			memoryHierarchy_(memoryHierarchy)
+			, controller_request_("Controller Request")
 		{
 			name_ << name;
 			controller_request_.connect(signal_mem_ptr(*this,

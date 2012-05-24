@@ -10,7 +10,10 @@
 
 #include <basecore.h>
 #include <globals.h>
-#include <decode.h>
+
+#include <ooo.h>
+
+#include <atomcore.h>
 
 using namespace Core;
 

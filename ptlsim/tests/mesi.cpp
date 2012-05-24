@@ -179,7 +179,7 @@ namespace {
         r();
 
         e_hit(update, in);
-        ASSERT_TRUE(cont->wait_interconn);
+        ASSERT_TRUE(cont->miss);
         r();
 
         e_hit(evict, in);

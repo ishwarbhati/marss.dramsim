@@ -1,0 +1,6 @@
+-corefreq 2000000000
+-logfile ptlsim.log
+-stats ptlsim.stats
+-stopinsns 1000m
+-kill-after-run
+-machine shared_l2

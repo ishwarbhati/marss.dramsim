@@ -12,7 +12,6 @@
 #define BASE_CORE_H
 
 #include <ptlsim.h>
-#include <ptl-qemu.h>
 #include <machine.h>
 #include <statsBuilder.h>
 #include <memoryHierarchy.h>

@@ -55,10 +55,4 @@ namespace {
         TEST_NS_TO_CYCLE(3e9, 50, 150);
 #undef TEST_NS_TO_CYCLE
     }
-
-    TEST(Sim, InvalidTag)
-    {
-        W64 invalid = InvalidTag<W64>::INVALID;
-        ASSERT_EQ(-1, invalid);
-    }
 };

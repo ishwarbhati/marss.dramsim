@@ -1,0 +1,1 @@
+./qemu/qemu-system-x86_64 -curses -m 16G -drive cache=unsafe,file=../parsec_roi/parsecROI.qcow2 -simconfig simconfig.txt

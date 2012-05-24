@@ -49,8 +49,8 @@ CPUController::CPUController(W8 coreid, const char *name,
 
 	int_L1_i_ = NULL;
 	int_L1_d_ = NULL;
-	icacheLineBits_ = 0;
-	dcacheLineBits_ = 0;
+	icacheLineBits_ = log2(L1I_LINE_SIZE);
+	dcacheLineBits_ = log2(L1D_LINE_SIZE);
 
     SET_SIGNAL_CB(name, "_Cache_Access", cacheAccess_, &CPUController::cache_access_cb);
 
@@ -71,11 +71,11 @@ bool CPUController::handle_interconnect_cb(void *arg)
 	memdebug("Received message in controller: ", get_name(), endl);
 
 	// ignore the evict message
-	if unlikely (message->request->get_type() == MEMORY_OP_EVICT)
+	if(message->request->get_type() == MEMORY_OP_EVICT)
 		return true;
 
 	CPUControllerQueueEntry *queueEntry = find_entry(message->request);
-	if unlikely (queueEntry == NULL) {
+	if(queueEntry == NULL) {
 		return true;
 	}
 
@@ -104,7 +104,7 @@ void CPUController::annul_request(MemoryRequest *request)
 			entry->annuled = true;
 			entry->request->decRefCounter();
 
-            if unlikely  (entry->depends >= 0) {
+            if (entry->depends >= 0) {
                 CPUControllerQueueEntry *depEntry = &pendingRequests_[entry->depends];
                 if (entry->waitFor >= 0) {
                     pendingRequests_[entry->waitFor].depends = depEntry->idx;
@@ -161,12 +161,12 @@ bool CPUController::is_icache_buffer_hit(MemoryRequest *request)
 int CPUController::access_fast_path(Interconnect *interconnect,
 		MemoryRequest *request)
 {
-	int fastPathLat = 0;
+	int fastPathLat ;
     bool kernel_req = request->is_kernel();
 
-	if likely (interconnect == NULL) {
+	if(interconnect == NULL) {
 		// From CPU
-		if unlikely (request->is_instruction()) {
+		if(request->is_instruction()) {
 
 			bool bufferHit = is_icache_buffer_hit(request);
 			if(bufferHit)
@@ -180,7 +180,8 @@ int CPUController::access_fast_path(Interconnect *interconnect,
 		}
 	}
 
-    if unlikely (fastPathLat == 0)
+	// if(fastPathLat == 0 && request->is_instruction())
+    if(fastPathLat == 0)
 		return 0;
 
 	request->incRefCounter();
@@ -190,7 +191,7 @@ int CPUController::access_fast_path(Interconnect *interconnect,
 
 	CPUControllerQueueEntry* queueEntry = pendingRequests_.alloc();
 
-	if unlikely (queueEntry == NULL) {
+	if(queueEntry == NULL) {
 		memoryHierarchy_->add_event(&queueAccess_, 1, request);
 		return -1;
 	}
@@ -307,9 +308,9 @@ void CPUController::finalize_request(CPUControllerQueueEntry *queueEntry)
 	req_latency = (req_latency >= 200) ? 199 : req_latency;
     bool kernel_req = request->is_kernel();
 
-	if unlikely (request->is_instruction()) {
+	if(request->is_instruction()) {
 		W64 lineAddress = get_line_address(request);
-		if likely (icacheBuffer_.isFull()) {
+		if(icacheBuffer_.isFull()) {
 			memdebug("Freeing icache buffer head\n");
 			icacheBuffer_.free(icacheBuffer_.head());
 			N_STAT_UPDATE(stats.queueFull, ++, request->is_kernel());
@@ -333,7 +334,7 @@ void CPUController::finalize_request(CPUControllerQueueEntry *queueEntry)
      * now check if pendingRequests_ buffer has space left then
      * clear the full flag in memory hierarchy
      */
-	if likely (!pendingRequests_.isFull()) {
+	if(!pendingRequests_.isFull()) {
 		memoryHierarchy_->set_controller_full(this, false);
 		N_STAT_UPDATE(stats.queueFull, ++, request->is_kernel());
 	}
@@ -343,12 +344,12 @@ bool CPUController::cache_access_cb(void *arg)
 {
 	CPUControllerQueueEntry* queueEntry = (CPUControllerQueueEntry*)arg;
 
-	if unlikely (queueEntry->annuled || queueEntry->cycles > 0)
+	if(queueEntry->cycles > 0)
 		return true;
 
     /* Send request to corresponding interconnect */
 	Interconnect *interconnect;
-	if unlikely (queueEntry->request->is_instruction())
+	if(queueEntry->request->is_instruction())
 		interconnect = int_L1_i_;
 	else
 		interconnect = int_L1_d_;

@@ -238,8 +238,7 @@ namespace superstl {
   // ostream class
   //
   static const char endl[] = "\n";
-  struct iosflush { iosflush() {} };
-  extern const iosflush flush;
+  static class iosflush { } flush;
 
   static inline ostream& operator <<(ostream& os, const iosflush& v) {
     os.flush();
@@ -517,7 +516,7 @@ namespace superstl {
   // Turn a raw-memory into an array of <T> filled with <value>
   //
   template <typename T, bool> struct ArrayConstructor {
-    inline static void init(T* noalias p, int length) {
+    inline static void init(T* noalias p, size_t length) {
       foreach (i, length) { new(p + i) T(); }
     }
   };
@@ -544,9 +543,9 @@ namespace superstl {
   static inline T* renew(T* p, size_t oldcount, size_t newcount) {
     if unlikely (newcount <= oldcount) return p;
     T* pp = (T*)malloc(sizeof(T) * newcount);
-    if unlikely (!p) { assert(oldcount == 0); }
+    if unlikely (!p) assert(oldcount == 0);
 
-    if likely (p && p != pp) {
+    if likely (p) {
       arraycopy(pp, p, oldcount);
       free(p);
     }
@@ -686,9 +685,9 @@ namespace superstl {
   protected:
   public:
     T* data;
-    int length;
-    int reserved;
-    int granularity;
+    size_t length;
+    size_t reserved;
+    size_t granularity;
 
   public:
     inline T& operator [](int i) { return data[i]; }
@@ -759,6 +758,7 @@ namespace superstl {
     void reserve(int newsize) {
       if unlikely (newsize <= reserved) return;
       newsize = (newsize + (granularity-1)) & ~(granularity-1);
+      int oldsize = length;
       data = renew(data, length, newsize);
       reserved = newsize;
     }
@@ -782,14 +782,6 @@ namespace superstl {
       }
     }
 
-    void clear_and_free() {
-        foreach (i, length) {
-            T t = data[i];
-            delete t;
-        }
-        resize(0);
-    }
-
     // Only works with specialization for character arrays:
     char* tokenize(char* string, const char* seplist) { abort(); }
   };
@@ -797,7 +789,8 @@ namespace superstl {
   template <class T> static inline const T& operator <<(dynarray<T>& buf, const T& v) { return buf.push(v); }
   template <class T> static inline const T& operator >>(dynarray<T>& buf, T& v) { return (v = buf.pop()); }
 
-  template <> char* dynarray<char*>::tokenize(char* string, const char* seplist);
+  template <>
+  char* dynarray<char*>::tokenize(char* string, const char* seplist);
 
   template <class T>
   static inline ostream& operator <<(ostream& os, const dynarray<T>& v) {
@@ -821,7 +814,7 @@ namespace superstl {
     }
 
     inline W32 update(byte* data, int count) {
-      for (int i = 0; i < count ; i++) {
+      foreach (i, count) {
         update(data[i]);
       }
       return crc;
@@ -1776,7 +1769,7 @@ namespace superstl {
     size_t popcountop() const {
       size_t result = 0;
 
-      foreach (i, (int)N)
+      foreach (i, N)
         result += popcount64(w[i]);
 
       return result;
@@ -2109,7 +2102,7 @@ namespace superstl {
     }
 
     bitvec<N>& operator <<=(int index) {
-      if likely (index < (int)N) {
+      if likely (index < N) {
         this->shiftleftop(index);
         this->sanitize();
       } else this->resetop();
@@ -2117,7 +2110,7 @@ namespace superstl {
     }
 
     bitvec<N>& operator>>=(int index) {
-      if likely (index < (int)N) {
+      if likely (index < N) {
         this->shiftrightop(index);
         this->sanitize();
       } else this->resetop();
@@ -2276,14 +2269,14 @@ namespace superstl {
     // explicit operator unsigned long long() const { return integer(); }
 
     ostream& print(ostream& os) const {
-      foreach (i, (int)N) {
+      foreach (i, N) {
         os << (((*this)[i]) ? '1' : '0');
       }
       return os;
     }
 
     stringbuf& print(stringbuf& sb) const {
-      foreach (i, (int)N) {
+      foreach (i, N) {
         sb << (((*this)[i]) ? '1' : '0');
       }
       return sb;
@@ -2520,7 +2513,7 @@ namespace superstl {
     static inline int hash(const char* key) {
       int len = strlen(key);
       CRC32 h;
-      for (int i = 0 ; i < len ; i++) { h << key[i]; }
+      foreach (i, len) { h << key[i]; }
       return h;
     }
 
@@ -2619,7 +2612,7 @@ namespace superstl {
       int n = 0;
       Iterator iter(this);
       T* t;
-      while ((t = iter.next())) {
+      while (t = iter.next()) {
         assert(n < count);
         a[n++] = t;
       }
@@ -2782,7 +2775,7 @@ namespace superstl {
       int n = 0;
       Iterator iter(this);
       KeyValuePair<K, T>* kvp;
-      while ((kvp = iter.next())) {
+      while (kvp = iter.next()) {
         assert(n < base_t::count);
         a[n++] = *kvp;
       }
@@ -3198,7 +3191,7 @@ namespace superstl {
     // Fast vectorized method: empty only if all slots are literally zero
     const W64* p = (const W64*)ptr;
     W64 v = 0;
-    foreach (i, (int)(bytes/8)) v |= p[i];
+    foreach (i, (bytes/8)) v |= p[i];
     if unlikely (v % 8) {
       v |= (p[(bytes/8)] & bitmask((bytes % 8)*8));
     }
@@ -3519,7 +3512,7 @@ namespace superstl {
   };
 
   template <typename T, typename Comparator>
-  void sort(T* p, int n, const Comparator& compare = DefaultComparator<T>()) {
+  void sort(T* p, size_t n, const Comparator& compare = DefaultComparator<T>()) {
     int c;
 
     // heapify
@@ -3826,9 +3819,7 @@ namespace superstl {
     }
 
     W64 acquire() {
-#ifdef ENABLE_SPINLOCK_PROFILING
       W64 iterations = 0;
-#endif
 
       for (;;) {
         if unlikely (lock) {
@@ -3905,7 +3896,8 @@ namespace superstl {
     }
 
     void release() {
-      assert(locking_vcpuid == current_vcpuid());
+      W16s current = current_vcpuid();
+      assert(locking_vcpuid == current);
       assert(counter > 0);
 
       counter--;
@@ -3931,7 +3923,10 @@ namespace superstl {
 
   class TFunctor {
 	  public:
-		  virtual bool operator()(void* arg) = 0;
+		  virtual bool operator()(void* arg){
+			  assert(0);
+			  return false;
+		  };
   };
 
   template<class T>

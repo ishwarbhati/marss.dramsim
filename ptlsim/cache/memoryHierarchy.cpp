@@ -102,7 +102,13 @@ void MemoryHierarchy::clock()
 		cpuController->clock();
 	}
 #ifdef DRAMSIM
-    ((MemoryController*)memoryController_)->mem->update();	
+	// TODO: unhardcode this -- my CPU clock defaults to 2ghz, a DDR3, sg15 part 
+	// 		has a 667MHZ clock, so only call this function 1/3 of the time
+
+	if (sim_cycle % 3 == 0)
+	{
+		((MemoryController*)memoryController_)->mem->update();	
+	}
 #endif
 
 	Event *event;
@@ -336,9 +342,7 @@ void MemoryHierarchy::add_event(Signal *signal, int delay, void *arg)
 
 Message* MemoryHierarchy::get_message()
 {
-    Message* message = messageQueue_.alloc();
-    assert(message);
-    return message;
+    return messageQueue_.alloc();
 }
 
 void MemoryHierarchy::free_message(Message* msg)
@@ -350,6 +354,8 @@ void MemoryHierarchy::annul_request(W8 coreid,
 		W8 threadid, int robid, W64 physaddr,
 		bool is_icache, bool is_write)
 {
+	MemoryRequest* annul_request = NULL;
+
     /*
 	 * Flushin of the caches is disabled currently because we need to
 	 * implement a logic where every cache will check physaddr's cache line
@@ -411,7 +417,7 @@ bool MemoryHierarchy::grab_lock(W64 lockaddr, W8 ctx_id)
     bool ret = false;
     MemoryInterlockEntry* lock = interlocks.select_and_lock(lockaddr);
 
-    if likely (lock && lock->ctx_id == (W8)-1) {
+    if(lock && lock->ctx_id == (W8)-1) {
         lock->ctx_id = ctx_id;
         ret = true;
     }
@@ -447,7 +453,7 @@ bool MemoryHierarchy::probe_lock(W64 lockaddr, W8 ctx_id)
     bool ret = false;
     MemoryInterlockEntry* lock = interlocks.probe(lockaddr);
 
-    if likely (!lock) { // If no one has grab the lock
+    if(!lock) { // If no one has grab the lock
         ret = true;
     } else if(lock && lock->ctx_id == ctx_id) {
         ret = true;

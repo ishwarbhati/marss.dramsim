@@ -43,7 +43,6 @@ class Statable {
     private:
         dynarray<Statable*> childNodes;
         dynarray<StatObjBase*> leafs;
-        bool summarize;
         bool dump_disabled;
         bool periodic_enabled;
         Statable *parent;
@@ -184,15 +183,6 @@ class Statable {
         void disable_dump_periodic() { periodic_enabled = true; }
         bool is_dump_periodic() { return periodic_enabled; }
 
-        void enable_summary()
-        {
-            summarize = true;
-            if (parent) parent->enable_summary();
-        }
-
-        ostream& dump_summary(ostream &os, Stats *stats, const char *pfx) const;
-        bool is_summarize_enabled() { return summarize; }
-
         /**
          * @brief Dump string representation of  Statable and it childs
          *
@@ -233,7 +223,9 @@ class Statable {
 
         ostream& dump_header(ostream &os) const;
 
-        stringbuf *get_full_stat_string() const;
+        stringbuf *get_full_stat_string();
+
+
 
 };
 
@@ -374,7 +366,6 @@ class StatsBuilder {
         bool is_dump_periodic() { return rootNode->is_dump_periodic(); }
         ostream& dump_header(ostream &os) const;
         ostream& dump_periodic(ostream &os, W64 cycle) const;
-        ostream& dump_summary(ostream &os) const;
 
         void delete_nodes()
         {
@@ -425,7 +416,6 @@ class Stats {
         Stats& operator=(Stats& rhs_stats)
         {
             memcpy(mem, rhs_stats.mem, sizeof(W8) * STATS_SIZE);
-            return *this;
         }
 };
 
@@ -437,14 +427,12 @@ class StatObjBase {
         Stats *default_stats;
         Statable *parent;
         stringbuf name;
-        bool summarize;
         bool dump_disabled;
         bool periodic_enabled;
 
     public:
         StatObjBase(const char *name, Statable *parent)
             : parent(parent)
-              , summarize(false)
               , dump_disabled(false)
               , periodic_enabled(false)
         {
@@ -479,15 +467,7 @@ class StatObjBase {
 
         inline bool is_dump_periodic() const { return periodic_enabled; }
 
-        void enable_summary()
-        {
-            summarize = true;
-            parent->enable_summary();
-        }
-
-        inline bool is_summarize_enabled() const { return summarize; }
-
-        stringbuf *get_full_stat_string() const
+        stringbuf *get_full_stat_string()
         {
             if (parent){
                 stringbuf *parent_name = parent->get_full_stat_string();
@@ -510,10 +490,8 @@ class StatObjBase {
 
                 delete full_string;
             }
-            return os;
         }
 
-        virtual ostream& dump_summary(ostream& os, Stats* stats, const char* pfx) const = 0;
 
         virtual void add_stats(Stats& dest_stats, Stats& src_stats) = 0;
         virtual void sub_stats(Stats& dest_stats, Stats& src_stats) = 0;
@@ -896,17 +874,6 @@ class StatObj : public StatObjBase {
             }
             return os;
         }
-
-        ostream &dump_summary(ostream &os, Stats *stats, const char* pfx) const
-        {
-            if (is_summarize_enabled()) {
-                T& val = (*this)(stats);
-                stringbuf *name = get_full_stat_string();
-                os << pfx << "." << (*name) << " = " << val << endl;
-            }
-
-            return os;
-        }
 };
 
 /**
@@ -922,7 +889,6 @@ class StatArray : public StatObjBase {
         T* default_var;
         const char** labels;
         bitvec<size> periodic_flag;
-        bitvec<size> summarize_flag;
 
         inline void set_default_var_ptr()
         {
@@ -1180,41 +1146,6 @@ class StatArray : public StatObjBase {
             return os;
         }
 
-        void enable_summary(int id = -1)
-        {
-            StatObjBase::enable_summary();
-            if(id == -1) {
-                summarize_flag.setall();
-            } else {
-                assert(id < size);
-                summarize_flag[id] = 1;
-            }
-        }
-
-        ostream &dump_summary(ostream &os, Stats *stats, const char* pfx) const
-        {
-            if (!is_summarize_enabled()) return os;
-
-            BaseArr& arr = (*this)(stats);
-            stringbuf* name = get_full_stat_string();
-
-            foreach (i, size) {
-                if(summarize_flag[i]) {
-                    os << pfx << "." << (*name);
-
-                    if (labels) {
-                        os << "." << labels[i];
-                    } else {
-                        os << "." << i;
-                    }
-
-                    os << " = " << arr[i] << endl;
-                }
-            }
-
-            return os;
-        }
-
         /**
          * @brief Get size of this array
          *
@@ -1254,7 +1185,7 @@ class StatString : public StatObjBase {
 
     public:
 
-        static const uint16_t MAX_STAT_STR_SIZE = 256;
+        static const int MAX_STAT_STR_SIZE = 256;
 
         /**
          * @brief Default constructor
@@ -1488,10 +1419,6 @@ class StatString : public StatObjBase {
             return os;
         }
 
-        ostream &dump_summary(ostream &os, Stats *stats, const char* pfx) const
-        {
-            return os;
-        }
 };
 
 /**

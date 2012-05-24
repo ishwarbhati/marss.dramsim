@@ -33,10 +33,6 @@
 
 namespace Memory {
 
-// Bus Dealys
-const int BUS_ARBITRATE_DELAY = 1;
-const int BUS_BROADCASTS_DELAY = 6;
-
 namespace SplitPhaseBus {
 
 struct BusControllerQueue;
@@ -134,18 +130,14 @@ class BusInterconnect : public Interconnect
 	private:
 		dynarray<BusControllerQueue*> controllers;
 		BusControllerQueue* lastAccessQueue;
-		FixStateList<PendingQueueEntry, 32> pendingRequests_;
+		FixStateList<PendingQueueEntry, 8> pendingRequests_;
 		bool busBusy_;
 		bool dataBusBusy_;
-		bool snoopDisabled_;
 		Signal broadcast_;
 		Signal dataBroadcast_;
 		Signal broadcastCompleted_;
 		Signal dataBroadcastCompleted_;
         BusStats *new_stats;
-
-        int latency_;
-        int arbitrate_latency_;
 
 		BusQueueEntry *arbitrate_round_robin();
 		bool can_broadcast(BusControllerQueue *queue, MemoryRequest *request);
@@ -167,7 +159,7 @@ class BusInterconnect : public Interconnect
 
 		// Bus delay in sending message is BUS_BROADCASTS_DELAY
 		int get_delay() {
-			return latency_;
+			return BUS_BROADCASTS_DELAY;
 		}
 
 		void print(ostream& os) const {

@@ -305,13 +305,11 @@ namespace OOO_CORE_MODEL {
                   , insns("insns", this)
                   , uipc("uipc", this)
                   , ipc("ipc", this)
+                  , opclass("opclass", this, opclass_names)
                   , result(this)
                   , fail(this)
                   , setflags(this)
-                  , opclass("opclass", this, opclass_names)
-            {
-                ipc.enable_summary();
-            }
+            {}
         } commit;
 
         struct branchpred : public Statable
@@ -398,13 +396,13 @@ namespace OOO_CORE_MODEL {
 
                     issue(Statable *parent)
                         : Statable("issue", parent)
+                          , replay(this)
                           , complete("complete", this)
                           , miss("miss", this)
                           , hit("hit", this)
                           , exception("exception", this)
                           , ordering("ordering", this)
                           , unaligned("unaligned", this)
-                          , replay(this)
                     {}
                 } issue;
 
@@ -603,8 +601,8 @@ namespace OOO_CORE_MODEL {
                     : Statable("width", parent)
                       , int0("int0", this)
                       , int1("int1", this)
-                      , fp("fp", this)
                       , ld("ld", this)
+                      , fp("fp", this)
                       , all("all", this)
                 {}
             } width;
@@ -630,8 +628,8 @@ namespace OOO_CORE_MODEL {
                     : Statable("width", parent)
                       , int0("int0", this)
                       , int1("int1", this)
-                      , fp("fp", this)
                       , ld("ld", this)
+                      , fp("fp", this)
                       , all("all", this)
                 {}
             } width;

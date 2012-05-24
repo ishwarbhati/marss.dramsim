@@ -2,11 +2,17 @@
 
 #
 # This script is used to run checkpointed images of MARSSx86 Simulator.
-# To use this script uses 'util.cfg' configuration file to read a simulation
-# run configuration. Take a look at 'util.cfg.example' to get the idea on how
-# to setup a run configuration.
+# To use this script, make sure that following variables are set correctly:
+#   - qemu_bin : Path to the binary 'qemu-system-x86_64' compiled for MARSS
+#   - qemu_img : A list of qemu images that contains checkpoints to run.  These
+#                images must be identical.  Based on number of images listed,
+#                the script will invoke threads to run benchmarks in parallel
+#   - vm_smp   : Number of Simulated cores
+#   - vnc_counter : Every simulation run its QEMU window in VNC so it can be
+#                   accessed later.  By defalt it starts with 10, but change if
+#                   other applications are using those vnc servers
 #
-# Author  : Avadh Patel
+# Author  : Avadh Patel 
 # Contact : apatel at cs.binghamton.edu
 #
 
@@ -15,51 +21,17 @@ import os
 import subprocess
 import sys
 
+workload = sys.argv[1]
 from optparse import OptionParser
+
 from threading import Thread, Lock
 
-import config
-
-# Helper functions
-
-def get_run_config(conf, name):
-    # First check if given configuration exists or not
-    conf_name = "run %s" % name
-
-    if not conf.has_section(conf_name):
-        print("Unable to find configuration %s from config file." % conf_name)
-        exit(-1)
-
-    return conf_name
-
-def get_list_from_conf(value):
-    # User can specify configuration values either in comma seperated, or new
-    # line seperated or mix of both.
-    ret = []
-    for i in value.split('\n'):
-        for j in i.split(','):
-            ret.append(j.strip())
-    return ret
-
 # First check if user has provided directory to save all results files
-opt_parser = OptionParser("Usage: %prog [options] run_config")
+opt_parser = OptionParser("Usage: %prog [-d output_dir_name]")
 opt_parser.add_option("-d", "--output-dir", dest="output_dir",
         type="string", help="Name of the output directory to save all results")
-opt_parser.add_option("-c", "--config",
-        help="Configuration File. By default use util.cfg in util directory")
-opt_parser.add_option("-e", "--email", action="store_true",
-        help="Send email using 'send_gmail.py' script after completion")
 
 (options, args) = opt_parser.parse_args()
-
-# Check if there is any configration argument provided or not
-if len(args) == 0 or args[0] == None:
-    print("Please provide configuration name.")
-    opt_parser.print_help()
-    exit(-1)
-
-# Read configuration file
-conf_parser = config.read_config(options.config)
 
 if options.output_dir == None:
     options.output_dir = "."
@@ -70,79 +42,59 @@ else:
 
 output_dir = options.output_dir + "/"
 
-# Get the configuration
-run_sec = get_run_config(conf_parser, args[0])
-
-# Get qemu binary
-qemu_bin = conf_parser.get(run_sec, 'qemu_bin')
-if not os.path.exists(qemu_bin):
-    print("Qemu binary file (%s) doesn't exists." % qemu_bin)
-    exit(-1)
-
-# Get disk images
-qemu_img = conf_parser.get(run_sec, 'images')
-qemu_img = get_list_from_conf(qemu_img)
-
-for img in qemu_img:
-    if not os.path.exists(img):
-        print("Qemu disk image (%s) doesn't exists." % img)
-        exit(-1)
-
-# Get VM memory
-vm_memory = conf_parser.get(run_sec, 'memory')
-
-if not vm_memory:
-    print("Please specify 'memory' in your config.")
-    exit(-1)
-
-if conf_parser.has_option(run_sec, 'vnc_counter'):
-    vnc_counter = conf_parser.getint(run_sec, 'vnc_counter')
-else:
-    vnc_counter = None
-
-# Checkpoin List
-if not conf_parser.has_option(run_sec, 'suite'):
-    print("Plese specify benchmark suite using 'suite' option.")
-    exit(-1)
-
-suite = "suite %s" % conf_parser.get(run_sec, 'suite')
-
-if not conf_parser.has_section(suite):
-    print("Unable to find section '%s' in your configuration." % suite)
-    exit(-1)
-
-if not conf_parser.has_option(suite, 'checkpoints'):
-    print("Please specify checkpoints in section '%s'." % suite)
-    exit(-1)
-
-check_list = conf_parser.get(suite, 'checkpoints')
-check_list = get_list_from_conf(check_list)
-print("Checkpoints: %s" % str(check_list))
-
-# Get the simconfig
-if not conf_parser.has_option(run_sec, 'simconfig'):
-    print("Please specify simconfig in section '%s'." % run_sec)
-    exit(-1)
-
-simconfig = conf_parser.get(run_sec, 'simconfig', True)
-print("simconfig: %s" % simconfig)
-
-# Get optional qemu arguments
+# Set up default variables
+cwd = os.getcwd()
+qemu_bin = '%s/qemu/qemu-system-x86_64' % cwd
+# qemu_img = ['/home/avadh/workspace/vm/spec2006.qcow2',
+        # '/home/avadh/workspace/vm/spec2006_2.qcow2',
+        # '/home/avadh/workspace/vm/spec2006_3.qcow2']
+qemu_img = ['%s/../parsec_roi/parsecROI.qcow2' % cwd]
+#qemu_imgb = '%s/../parsec_roi/linux-c.raw' % cwd
+#qemu_img = ['/home/ibhati/DRAM_MEM/parsec_image/parsec.qcow2']
+#vm_memory = 8192
+vm_memory = 16384
 qemu_cmd = ''
-qemu_args = ''
-
-if conf_parser.has_option(run_sec, 'qemu_args'):
-    qemu_args = conf_parser.get(run_sec, 'qemu_args')
+vm_smp = 1
+#vm_smp = 2
+vnc_counter = 26208
 
 num_threads = len(qemu_img)
 
 # If user give argument 'out' then print the output of simulation run
 # to stdout else ignore it
 out_to_stdout = False
+if len(sys.argv) == 2 and sys.argv[1] == 'out':
+    out_to_stdout = True
+
+# Checkpoint list
+check_list = []
+
+spec_list = ['perl', 'bzip', 'gcc', 'gamess', 'mcf', 'milc',
+        'gromacs', 'cactusADM', 'gobmk', 'deal2', 'soplex', 'povray',
+        'calculix', 'hmm', 'quantum', 'tonto', 'omnetpp', 'sphinx', 'xalanc']
+
+parsec_list = ['blackscholes', 'bodytrack', 'ferret', 'freqmine', 'swaptions', 
+        'fluidanimate', 'vips', 'x264', 'canneal', 'dedup', 'streamcluster']
+
+# To run single checkpoint
+#check_list.append('blackscholes')
+#check_list.append('mult-prog')
+check_list.append(workload)
+
+# To run all spec checkpoints
+# check_list = spec_list
 
 checkpoint_lock = Lock()
 checkpoint_iter = iter(check_list)
 
+# Simulation Command
+#sim_cmd_generic = 'simconfig -stats %s.stats -run -logfile %s.log'
+sim_cmd_generic = 'simconfig -stats %s.stats -run -logfile %s.log -number-of-cores 4 -kill-after-run -stopinsns 1000m -machine shared_l2'
+#sim_cmd_generic = 'simconfig -stats %s.stats -run -logfile %s.log -kill-after-run -stopinsns 1000m -machine single_core'
+#sim_cmd_generic = 'simulate -stats %s.stats -run -logfile %s.log -stopinsns 10m'
+
+print("Execution command: %s" % qemu_cmd)
+print("Generic simulation command: %s" % sim_cmd_generic)
 print("Chekcpoints to run: %s" % str(check_list))
 print("All files will be saved in: %s" % output_dir)
 
@@ -177,7 +129,7 @@ class SerialOut(Thread):
                     break
         except OSError:
             pass
-
+            
         print("Writing to output file completed")
         out_file.close()
         os.close(out_dev_file)
@@ -201,7 +153,7 @@ class StdOut(Thread):
                     sys.stdout.write(line)
         except OSError:
             pass
-
+            
         print("Writing to stdout completed")
 
 
@@ -220,7 +172,6 @@ class RunSim(Thread):
         global sim_cmd_generic
         global vnc_counter
         global output_dir
-        global simconfig
 
         print("Running thread with img: %s" % self.qemu_img)
 
@@ -235,48 +186,34 @@ class RunSim(Thread):
                 checkpoint_lock.acquire()
                 checkpoint = checkpoint_iter.next()
                 self.vnc_counter = vnc_counter
-                if vnc_counter != None:
-                    vnc_counter += 1
+                vnc_counter += 1
             except:
                 checkpoint = None
             finally:
                 checkpoint_lock.release()
 
-            print("Checkpoint %s" % checkpoint)
-            if not checkpoint:
+            if checkpoint == None:
                 break
-
-            sim_file_cmd_name = "/tmp/%s.simconfig" % checkpoint
-            sim_file_cmd = open(sim_file_cmd_name, "w")
-            config_args = conf_parser.defaults()
-            config_args['out_dir'] = os.path.realpath(output_dir)
-            config_args['bench'] = checkpoint
-            print("simconfig: %s" % simconfig)
-            sim_file_cmd.write(simconfig % config_args)
-            sim_file_cmd.write("\n")
-            sim_file_cmd.close()
-            print("Config file written")
-
+            
             # Generate a common command string
             self.add_to_cmd(qemu_bin)
-            self.add_to_cmd('-m %s' % str(vm_memory))
+            self.add_to_cmd('-m %d' % vm_memory)
             self.add_to_cmd('-serial pty')
-            if self.vnc_counter:
-                self.add_to_cmd('-vnc :%d' % self.vnc_counter)
-            else:
-                self.add_to_cmd('-nographic')
+            self.add_to_cmd('-monitor pty')
+            #self.add_to_cmd('-smp %d' % vm_smp)
+            self.add_to_cmd('-vnc :%d' % self.vnc_counter)
+            #self.add_to_cmd('-cpu core2duo')
+            self.add_to_cmd('-S')
 
             # Add Image at the end
-            self.add_to_cmd('-drive cache=unsafe,file=%s' % self.qemu_img)
-            self.add_to_cmd('-simconfig %s' % sim_file_cmd_name)
-            self.add_to_cmd('-loadvm %s' % checkpoint)
-            self.add_to_cmd(qemu_args)
+	    #self.add_to_cmd('-hda %s' % self.qemu_img)
+	    self.add_to_cmd('-drive cache=unsafe,file=%s' % self.qemu_img)
 
             print("Starting Checkpoint: %s" % checkpoint)
-            print("Command: %s" % self.qemu_cmd)
+	    print("qemu command: %s" % self.qemu_cmd)
 
             p = subprocess.Popen(self.qemu_cmd.split(), stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT, stdin=subprocess.PIPE, bufsize=0)
+                    stderr=subprocess.STDOUT, bufsize=0)
 
             monitor_pty = None
             serial_pty = None
@@ -290,20 +227,38 @@ class RunSim(Thread):
                     # Open the device terminal and send simulation command
                     # pty_term = os.open(dev_name, os.O_RDWR)
                     pty_term = dev_name
+                    
+                    if monitor_pty == None:
+                        monitor_pty = pty_term
+                    else :
+                        serial_pty = pty_term
 
-                    serial_pty = pty_term
-
-                    if serial_pty != None:
+                    if monitor_pty != None and serial_pty != None:
                         break
 
             # Redirect output of serial terminal to file
             serial_thread = SerialOut('%s.out' % (checkpoint), serial_pty)
-
+            
             # os.dup2(serial_pty, sys.stdout.fileno())
+
+            # First load the vm checkpoint
+            monitor_pty = os.open(monitor_pty, os.O_RDWR)
+            pty_to_stdout(monitor_pty, ")")
+            os.write(monitor_pty, "loadvm %s\n" % checkpoint)
+
+            # Send simulation command
+            sim_command = sim_cmd_generic % (output_dir + checkpoint, 
+                    output_dir + checkpoint)
+            pty_to_stdout(monitor_pty, ")")
+            os.write(monitor_pty, '%s\n' % sim_command)
+            pty_to_stdout(monitor_pty, ")")
 
             stdout_thread = StdOut(p.stdout)
             stdout_thread.start()
             serial_thread.start()
+
+            # while p.stdout.closed == False:
+                # sys.stdout.write(p.stdout.read(128))
 
             # Wait for simulation to complete
             p.wait()
@@ -325,9 +280,8 @@ print("All Threads are started")
 for th in threads:
     th.join()
 
-# Send email to notify run completion
-if options.email:
-    email_script = "%s/send_gmail.py" % os.path.dirname(os.path.realpath(__file__))
-    subprocess.call([email_script, "-m", "Completed simulation runs"])
+print("WoooHooo... Finished Running all Simulations")
+print("Wish you get the results you expected :)")
+print("See You next time, till then Happy Coding..")
 
-print("Completed all simulation runs.")
+

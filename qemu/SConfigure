@@ -441,9 +441,7 @@ if not conf.TryLink(compile_test_src, '.cpp'):
 
 # Get the CPU type
 if conf.CheckCPUDefine("__i386__"):
-    print("ERROR: Marss does not support 32 bit x86 machine.")
-    print("ERROR: Please compile/run Marss on 64 bit x86 machine.")
-    exit_with_error()
+    env['cpu'] = "i386"
 elif conf.CheckCPUDefine("__x86_64__"):
     env['cpu'] = "x86_64"
 else :
@@ -970,9 +968,12 @@ for target in env['target_list'].split():
     target_darwin_user = False
     target_bsd_user = False
 
-    if not target_user_only and env['check_gfx'] and not env['sdl']:
-        print("Warning: QEMU requires SDL or Cocoa for GUI output.")
-        print("\tcan't find SDL or cocoa support so use VNC or curses interface")
+    if not target_user_only and env['check_gfx'] and not env['sdl'] and not cocoa:
+        print("ERROR: QEMU requires SDL or Cocoa for GUI output")
+        print("To build QEMU without graphical output configure with --disable-gfx-check")
+        print("Note this will disable all output from the virtual graphics card")
+        print("except through VNC or curses.")
+        exit_with_error()
 
     try:
         os.mkdir(target_dir)

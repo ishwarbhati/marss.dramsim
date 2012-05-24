@@ -17,7 +17,7 @@ def read_config(conf_file = None):
 		print("Unable to read '%s' configuration file." % conf_file)
 		exit(-1)
 
-	config = ConfigParser.ConfigParser()
+	config = ConfigParser.SafeConfigParser()
 	config.read(conf_file)
 
 	# Store the config file path
